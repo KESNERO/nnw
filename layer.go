@@ -1,6 +1,9 @@
 package nnw
 
-import "math"
+import (
+	"fmt"
+	"math"
+)
 
 type Layer struct {
 	Size   int
@@ -9,7 +12,8 @@ type Layer struct {
 }
 
 func Sigmoid(x float64) float64 {
-	return math.Pow(math.E, -x) / math.Pow(1+math.Pow(math.E, -x), 2)
+	y := 1.0 / (1.0 + math.Exp(-x))
+	return y
 }
 
 func SigmoidDerivative(y float64) float64 {
@@ -47,11 +51,8 @@ func (l *Layer) LeftProduct(w [][]float64) []float64 {
 }
 
 func (l *Layer) RightProduct(w [][]float64) []float64 {
-	var result = make([]float64, 0)
+	var result = make([]float64, len(w[0]))
 	for i := range w {
-		if len(result) == 0 {
-			result = make([]float64, len(w[i]))
-		}
 		for j := range w[i] {
 			result[j] += l.Neural[i] * w[i][j]
 		}
@@ -94,7 +95,6 @@ func (l *Layer) DeActivate(funcName string) []float64 {
 }
 
 func (l *Layer) Input(in []float64) {
-	l.Neural = make([]float64, len(in))
 	copy(l.Neural, in)
 }
 
@@ -128,4 +128,15 @@ func (l *Layer) Variance(t []float64) []float64 {
 		result[i] = math.Pow(l.Neural[i]-t[i], 2.0)
 	}
 	return result
+}
+
+func (l *Layer) Print(batchIndex, curLayerIndex int) {
+	fmt.Printf("Layer %v: ", curLayerIndex)
+	for i := range l.Neural {
+		if i > 0 {
+			fmt.Printf(", ")
+		}
+		fmt.Printf("%v", l.Neural[i])
+	}
+	fmt.Println()
 }

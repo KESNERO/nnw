@@ -34,19 +34,20 @@ func NewNetwork(ld []int, bs int, lr float64) *Network {
 	network.LearningRate = lr
 	network.Layers = make([][]*Layer, network.BatchSize)
 	network.W = make([][][]float64, 0)
-	for i, ln := range ld {
-		for j := range network.Layers {
-			network.Layers[j] = make([]*Layer, len(ld))
-			for k := range network.Layers[j] {
-				if k == 0 || k == len(ld)-1 {
-					network.Layers[j][k] = NewLayer(ln, "Normal")
-				} else if k == len(ld)-2 {
-					network.Layers[j][k] = NewLayer(ln, "Sigmoid")
-				} else {
-					network.Layers[j][k] = NewLayer(ln, "LeRU")
-				}
+	for k := 0; k < network.BatchSize; k++ {
+		network.Layers[k] = make([]*Layer, len(ld))
+		for j := range network.Layers[k] {
+			switch j {
+			case 0:
+				network.Layers[k][j] = NewLayer(ld[j], "Normal")
+			case len(ld)-1:
+				network.Layers[k][j] = NewLayer(ld[j], "LeRU")
+			default:
+				network.Layers[k][j] = NewLayer(ld[j], "LeRU")
 			}
 		}
+	}
+	for i, ln := range ld {
 		if i > 0 {
 			w := make([][]float64, ld[i-1])
 			for j := range w {
@@ -67,11 +68,14 @@ func (network *Network) ForwardSpread(input [][]float64) [][]float64 {
 		curLayerIndex := 0
 		curWIndex := 0
 		network.Layers[i][curLayerIndex].Input(input[i])
-		for curLayerIndex < len(network.Layers)-1 {
+		for curLayerIndex < len(network.LayerDefine)-1 {
+			//network.Layers[i][curLayerIndex].Print(i, curLayerIndex)
 			network.Layers[i][curLayerIndex+1].Input(network.Layers[i][curLayerIndex].RightProduct(network.W[curWIndex]))
 			network.Layers[i][curLayerIndex+1].Activate()
 			curLayerIndex++
+			curWIndex++
 		}
+		//network.Layers[i][curLayerIndex].Print(i, curLayerIndex)
 		output[i] = make([]float64, network.Layers[i][curLayerIndex].Size)
 		copy(output[i], network.Layers[i][curLayerIndex].Output())
 	}
@@ -79,12 +83,12 @@ func (network *Network) ForwardSpread(input [][]float64) [][]float64 {
 }
 
 func (network *Network) UpdateW(err [][]float64, wIndex, leftIndex, rightIndex int) {
-	tmp := make([][]float64, network.BatchSize)
+	tmp := make([][]float64, len(network.W[wIndex]))
 	for i := range tmp {
-		tmp[i] = make([]float64, len(network.W[i]))
+		tmp[i] = make([]float64, len(network.W[wIndex][i]))
 	}
 	var leftSize, rightSize int
-	for k := 0; k < network.BatchSize; k++ {
+	for k := 0; k < len(err); k++ {
 		leftSize = network.Layers[k][leftIndex].Size
 		rightSize = network.Layers[k][rightIndex].Size
 		for i := 0; i < leftSize; i++ {
@@ -103,7 +107,8 @@ func (network *Network) UpdateW(err [][]float64, wIndex, leftIndex, rightIndex i
 	}
 	for i := 0; i < leftSize; i++ {
 		for j := 0; j < rightSize; j++ {
-			network.W[wIndex][i][j] -= network.LearningRate * network.W[wIndex][i][j] * tmp[i][j] / float64(network.BatchSize)
+			delta := tmp[i][j] / float64(network.BatchSize)
+			network.W[wIndex][i][j] -= network.LearningRate * network.W[wIndex][i][j] * delta
 		}
 	}
 }
@@ -114,7 +119,7 @@ func (network *Network) NextError(err [][]float64, wIndex, leftIndex, rightIndex
 		nextError[k] = make([]float64, network.Layers[k][leftIndex].Size)
 	}
 	var leftSize, rightSize int
-	for k := 0; k < network.BatchSize; k++ {
+	for k := 0; k < len(err); k++ {
 		leftSize = network.Layers[k][leftIndex].Size
 		rightSize = network.Layers[k][rightIndex].Size
 		for i := 0; i < leftSize; i++ {
@@ -125,7 +130,7 @@ func (network *Network) NextError(err [][]float64, wIndex, leftIndex, rightIndex
 				case "Sigmoid":
 					nextError[k][i] += e * y * (1-y) * network.W[wIndex][i][j]
 				default:
-					nextError[i][j] += e * network.W[wIndex][i][j]
+					nextError[k][i] += e * network.W[wIndex][i][j]
 				}
 			}
 		}
@@ -134,7 +139,7 @@ func (network *Network) NextError(err [][]float64, wIndex, leftIndex, rightIndex
 }
 
 func (network *Network) BackPropagation(err [][]float64) {
-	curLayerIndex := len(network.Layers) - 1
+	curLayerIndex := len(network.LayerDefine) - 1
 	curWIndex := len(network.W) - 1
 	curError := make([][]float64, len(err))
 	copy(curError, err)
@@ -146,6 +151,17 @@ func (network *Network) BackPropagation(err [][]float64) {
 		curLayerIndex--
 		curWIndex--
 	}
+}
+
+func (network *Network) Predict(in [][]float64) [][]float64 {
+	out := make([][]float64, len(in))
+	for i := range in {
+		curIn := in[i:i+1]
+		curOut := network.ForwardSpread(curIn)
+		out[i] = make([]float64, len(curOut[0]))
+		copy(out[i], curOut[0])
+	}
+	return out
 }
 
 func (network *Network) SaveW() {
