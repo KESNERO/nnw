@@ -104,8 +104,8 @@ func (network *Network) PreprocessSigmoid(err []float64, l *Layer) {
 }
 
 func (network *Network) BackPropagation(err []float64) {
-	curSpecialLayerIndex := len(network.SpecialLayers)-1
-	curWIndex := len(network.W)-1
+	curSpecialLayerIndex := len(network.SpecialLayers) - 1
+	curWIndex := len(network.W) - 1
 	var curErr = make([]float64, len(err))
 	copy(curErr, err)
 	network.PreprocessSigmoid(curErr, network.SpecialLayers[curSpecialLayerIndex])
